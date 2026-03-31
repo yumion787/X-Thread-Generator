@@ -1,67 +1,114 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as cheerio from "cheerio";
+import { createClient } from "@/lib/supabase/server";
 
 const client = new Anthropic();
 
 async function fetchPageContent(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; ThreadGeneratorBot/1.0)",
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; ThreadGeneratorBot/1.0)",
+      },
+    });
+  } catch {
+    throw new Error("URLへの接続に失敗しました。URLが正しいか確認してください。");
+  }
 
+  if (response.status === 404) {
+    throw new Error("ページが見つかりませんでした（404）。URLが正しいか確認してください。");
+  }
+  if (response.status === 403) {
+    throw new Error("アクセスが拒否されました（403）。このページは取得できません。");
+  }
   if (!response.ok) {
-    throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+    throw new Error(`ページの取得に失敗しました（${response.status}）。URLを確認してください。`);
   }
 
   const html = await response.text();
   const $ = cheerio.load(html);
 
-  // Remove non-content elements
   $("script, style, nav, header, footer, aside, .sidebar, .ads, .advertisement").remove();
 
-  // Extract main content from article, main, or body
   let content = $("article").text();
   if (!content.trim()) content = $("main").text();
   if (!content.trim()) content = $("body").text();
 
-  // Normalize whitespace
   return content.replace(/\s+/g, " ").trim().slice(0, 8000);
 }
 
 export async function POST(request: NextRequest) {
   try {
+    // 認証チェック
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+    }
+
     const { url } = await request.json();
 
     if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "URLが必要です" }, { status: 400 });
     }
 
-    // Validate URL
     try {
       new URL(url);
     } catch {
       return NextResponse.json({ error: "無効なURLです" }, { status: 400 });
     }
 
-    const articleContent = await fetchPageContent(url);
+    // クレジット残高チェック（消費前に確認）
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("credits")
+      .eq("id", user.id)
+      .single();
 
-    if (!articleContent || articleContent.length < 100) {
+    if (!profile || profile.credits <= 0) {
+      return NextResponse.json({ error: "クレジットが不足しています" }, { status: 402 });
+    }
+
+    // 記事取得（クレジット消費前）
+    let articleContent: string;
+    try {
+      articleContent = await fetchPageContent(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "記事の取得に失敗しました";
+      return NextResponse.json({ error: msg }, { status: 422 });
+    }
+
+    if (articleContent.length < 200) {
       return NextResponse.json(
-        { error: "記事の内容を取得できませんでした" },
+        { error: "記事の内容が不足しているため、スレッドを生成できません。別のURLをお試しください。" },
         { status: 422 }
       );
     }
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2048,
-      messages: [
-        {
-          role: "user",
-          content: `以下のブログ記事を読んで、X（Twitter）用の連投スレッドを作成してください。
+    // クレジットをアトミックに消費（生成直前）
+    const { data: newCredits, error: creditError } = await supabase
+      .rpc("consume_credit", { p_user_id: user.id });
+
+    if (creditError || newCredits === null) {
+      return NextResponse.json({ error: "クレジットが不足しています" }, { status: 402 });
+    }
+
+    let responseText: string;
+    try {
+      const message = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        messages: [
+          {
+            role: "user",
+            content: `以下のブログ記事を読んで、X（Twitter）用の連投スレッドを作成してください。
+
+【重要ルール】
+- 入力された内容がブログ記事として不適切な場合（記事内容が存在しない、意味のあるテキストが読み取れない等）は、生成を中断し、以下のJSONのみを返すこと：
+  {"error": "ブログ記事として認識できる内容がありませんでした"}
 
 【記事内容】
 ${articleContent}
@@ -97,28 +144,65 @@ ${articleContent}
     {"index": 2, "content": "ポスト内容"}
   ]
 }`,
-        },
-      ],
-    });
+          },
+        ],
+      });
 
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+      responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    } catch {
+      // AI呼び出し失敗時はクレジットを返還
+      await supabase
+        .from("profiles")
+        .update({ credits: newCredits + 1 })
+        .eq("id", user.id);
 
-    // Extract JSON from response
+      return NextResponse.json(
+        { error: "AI生成中にエラーが発生しました。しばらくしてから再試行してください。" },
+        { status: 500 }
+      );
+    }
+
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      // パース失敗時はクレジットを返還
+      await supabase
+        .from("profiles")
+        .update({ credits: newCredits + 1 })
+        .eq("id", user.id);
+
       return NextResponse.json(
-        { error: "AIの応答をパースできませんでした" },
+        { error: "AIの応答を解析できませんでした。再試行してください。" },
         { status: 500 }
       );
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    return NextResponse.json(parsed);
+    // AIが記事不適切と判定した場合はクレジットを返還
+    if (parsed.error) {
+      await supabase
+        .from("profiles")
+        .update({ credits: newCredits + 1 })
+        .eq("id", user.id);
+
+      return NextResponse.json({ error: parsed.error }, { status: 422 });
+    }
+
+    // 履歴を保存
+    const { data: thread } = await supabase
+      .from("threads")
+      .insert({ user_id: user.id, url, posts: parsed.posts })
+      .select("id")
+      .single();
+
+    return NextResponse.json({
+      ...parsed,
+      thread_id: thread?.id,
+      credits_remaining: newCredits,
+    });
   } catch (error) {
     console.error("Error generating thread:", error);
-    const message = error instanceof Error ? error.message : "不明なエラー";
+    const message = error instanceof Error ? error.message : "不明なエラーが発生しました";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

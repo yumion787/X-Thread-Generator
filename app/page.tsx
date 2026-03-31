@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Sparkles, Copy, Check } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Header } from "@/components/Header";
+import { LoginModal } from "@/components/LoginModal";
+import { EditablePost } from "@/components/EditablePost";
 
 interface Post {
   index: number;
@@ -16,15 +22,76 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
+function SearchParamsHandler({
+  onToast,
+  onUrl,
+}: {
+  onToast: (msg: string, ms: number) => void;
+  onUrl: (url: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { refreshCredits } = useAuth();
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    if (payment === "success") {
+      onToast("購入が完了しました！クレジットが追加されます。", 4000);
+      refreshCredits();
+      router.replace("/");
+    } else if (payment === "cancel") {
+      onToast("購入がキャンセルされました。", 3000);
+      router.replace("/");
+    }
+
+    const urlParam = searchParams.get("url");
+    if (urlParam) {
+      onUrl(urlParam);
+      router.replace("/");
+      return;
+    }
+
+    // ログイン後に localStorage の pending_url を復元
+    const pendingUrl = localStorage.getItem("pending_url");
+    if (pendingUrl) {
+      onUrl(pendingUrl);
+      localStorage.removeItem("pending_url");
+    }
+  }, [searchParams]);
+
+  return null;
+}
+
 export default function Home() {
+  const { user, credits, refreshCredits } = useAuth();
   const [url, setUrl] = useState("");
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [toast, setToast] = useState("");
+  const [copiedAll, setCopiedAll] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [buyLoading, setBuyLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function showToast(msg: string, ms: number) {
+    setToast(msg);
+    setTimeout(() => setToast(""), ms);
+  }
+
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!user) {
+      if (url) localStorage.setItem("pending_url", url);
+      setShowLoginModal(true);
+      return;
+    }
+
+    if (credits !== null && credits <= 0) {
+      setError("クレジットが不足しています。購入してください。");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setPosts([]);
@@ -39,11 +106,16 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setShowLoginModal(true);
+          return;
+        }
         setError(data.error || "エラーが発生しました");
         return;
       }
 
       setPosts(data.posts);
+      refreshCredits();
     } catch {
       setError("通信エラーが発生しました");
     } finally {
@@ -51,23 +123,36 @@ export default function Home() {
     }
   }
 
-  async function handleCopy(content: string, index: number) {
-    await navigator.clipboard.writeText(content);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+  async function handleBuy() {
+    setBuyLoading(true);
+    try {
+      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {
+      setError("決済ページへの遷移に失敗しました");
+    } finally {
+      setBuyLoading(false);
+    }
   }
 
   async function handleCopyAll() {
     const all = posts.map((p) => p.content).join("\n\n");
     await navigator.clipboard.writeText(all);
-    setCopiedIndex(-1);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
   }
+
+  const noCredits = user && credits !== null && credits <= 0;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Background gradient at top */}
-      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-blue-50 to-transparent pointer-events-none" />
+      <div className="absolute top-0 left-0 right-0 h-64 bg-linear-to-b from-blue-50 to-transparent pointer-events-none" />
+
+      <Header
+        onLoginClick={() => setShowLoginModal(true)}
+        onBuyClick={handleBuy}
+      />
 
       <main className="relative flex-1 max-w-2xl mx-auto w-full px-4 py-12">
         {/* Header */}
@@ -79,6 +164,20 @@ export default function Home() {
             ブログ記事のURLを入力して、Xスレッドを自動生成
           </p>
         </div>
+
+        {/* Credit warning */}
+        {noCredits && (
+          <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-amber-700">クレジットがなくなりました</p>
+            <button
+              onClick={handleBuy}
+              disabled={buyLoading}
+              className="text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              {buyLoading ? "移動中..." : "10回分 / ¥300"}
+            </button>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="mb-8">
@@ -93,7 +192,7 @@ export default function Home() {
             />
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !!noCredits}
               className="rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-5 py-3 text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Sparkles size={15} />
@@ -128,7 +227,7 @@ export default function Home() {
                 onClick={handleCopyAll}
                 className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors cursor-pointer flex items-center gap-1"
               >
-                {copiedIndex === -1 ? (
+                {copiedAll ? (
                   <><Check size={12} />コピーしました！</>
                 ) : (
                   <><Copy size={12} />全てコピー</>
@@ -137,42 +236,7 @@ export default function Home() {
             </div>
 
             {posts.map((post) => (
-              <div
-                key={post.index}
-                className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-bold">
-                      {post.index}
-                    </span>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                      {post.content}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleCopy(post.content, post.index)}
-                    className="flex-shrink-0 text-xs text-gray-400 hover:text-blue-500 transition-colors px-2 py-1 rounded hover:bg-blue-50 cursor-pointer flex items-center gap-1"
-                  >
-                    {copiedIndex === post.index ? (
-                      <><Check size={12} />済み</>
-                    ) : (
-                      <><Copy size={12} />コピー</>
-                    )}
-                  </button>
-                </div>
-                <div className="mt-3 text-right">
-                  <span
-                    className={`text-xs ${
-                      post.content.length > 140
-                        ? "text-red-500"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    {post.content.length} / 140文字
-                  </span>
-                </div>
-              </div>
+              <EditablePost key={post.index} index={post.index} content={post.content} />
             ))}
           </div>
         )}
@@ -180,8 +244,8 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="relative border-t border-gray-200 py-6 px-4">
-        <div className="max-w-2xl mx-auto flex flex-col items-center gap-2 text-xs text-gray-400">
-          <div className="flex items-center gap-4">
+        <div className="max-w-2xl mx-auto flex flex-col items-center gap-3 text-xs text-gray-400">
+          <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
             <a
               href="https://x.com/yumion3_enmo"
               target="_blank"
@@ -192,15 +256,31 @@ export default function Home() {
               フィードバックはXまで
             </a>
             <span className="text-gray-200">|</span>
-            <a
-              href="#"
-              className="hover:text-gray-600 transition-colors"
-            >
-              プライバシーについて
-            </a>
+            <Link href="/terms" className="hover:text-gray-600 transition-colors">利用規約</Link>
+            <span className="text-gray-200">|</span>
+            <Link href="/privacy" className="hover:text-gray-600 transition-colors">プライバシーポリシー</Link>
+            <span className="text-gray-200">|</span>
+            <Link href="/legal" className="hover:text-gray-600 transition-colors">特定商取引法に基づく表記</Link>
           </div>
+          <p>© {new Date().getFullYear()} X Thread Generator</p>
         </div>
       </footer>
+
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
+
+      <Suspense>
+        <SearchParamsHandler onToast={showToast} onUrl={setUrl} />
+      </Suspense>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-3 rounded-full shadow-lg z-50 whitespace-nowrap">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
