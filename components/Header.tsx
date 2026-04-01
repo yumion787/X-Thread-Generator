@@ -96,13 +96,7 @@ export function Header({ onLoginClick, onBuyClick }: HeaderProps) {
             <div className="h-8 w-24 bg-gray-200 rounded-lg animate-pulse" />
           ) : user ? (
             <>
-              {/* デスクトップのみ: 履歴・クレジット */}
-              <Link
-                href="/history"
-                className="hidden md:block text-xs text-gray-500 hover:text-gray-800 transition-colors"
-              >
-                履歴
-              </Link>
+              {/* md以上のみ: クレジットバッジ */}
               <div className="hidden md:block">
                 <CreditBadge credits={credits} onBuy={onBuyClick} />
               </div>
@@ -128,7 +122,7 @@ export function Header({ onLoginClick, onBuyClick }: HeaderProps) {
                       <p className="text-xs font-medium text-gray-700 truncate">{name}</p>
                     </div>
 
-                    {/* クレジット（全サイズで表示） */}
+                    {/* クレジット */}
                     <div className="px-4 py-2.5 border-b border-gray-100">
                       <p className="text-xs text-gray-500 mb-1">クレジット残数</p>
                       <div className="flex items-center justify-between">
@@ -150,7 +144,7 @@ export function Header({ onLoginClick, onBuyClick }: HeaderProps) {
                       </div>
                     </div>
 
-                    {/* 履歴（全サイズで表示） */}
+                    {/* 履歴 */}
                     <Link
                       href="/history"
                       onClick={() => setDropdownOpen(false)}
@@ -174,14 +168,6 @@ export function Header({ onLoginClick, onBuyClick }: HeaderProps) {
                   </div>
                 )}
               </div>
-
-              {/* デスクトップのみ: ログアウトテキスト */}
-              <button
-                onClick={() => { if (window.confirm("ログアウトしますか？")) signOut(); }}
-                className="hidden md:block text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-              >
-                ログアウト
-              </button>
             </>
           ) : (
             <button
