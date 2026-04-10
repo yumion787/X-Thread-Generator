@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, Zap, Brain, AlignLeft, ArrowDown, Check } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, Zap, Brain, AlignLeft, ArrowDown, Check, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 
@@ -13,8 +14,30 @@ interface LandingPageProps {
   buyLoading: boolean;
 }
 
+const DEMO_POSTS = [
+  { index: 1, content: "「会社員エンジニアの平均年収は約550万円」\n\nでも、フリーランスに転向した人の\n平均は約880万円以上。\nその差、約330万円。\n\n「自分には無理」と思っている方ほど、\nまずこの現実を知ってほしいです。" },
+  { index: 2, content: "フリーランスエンジニア市場は今、追い風です📈\n\n市場規模は10年で約1.6倍に拡大。\nしかも企業の約60%が\n「フリーランスをもっと活用したい」と回答。\n\n需要が供給を上回っている、\n今がチャンスです。" },
+  { index: 3, content: "独立のタイミングの目安は\n「実務経験3年」です。\n\n経験1年 → 月単価 約37〜40万円\n経験3年 → 月単価 約60〜65万円\n経験5年 → 月単価 80万円以上\n\n3年を境に単価が大きく跳ね上がります。\n焦らず経験を積むのが実は近道です。" },
+  { index: 4, content: "独立への最もリスクが低い進め方👇\n\n①自分の市場価値を無料で診断する\n②副業や週末案件で小さく実績を作る\n③開業届・保険・税金の準備を整える\n④エージェントを複数登録して案件獲得\n\n退職前に動くのがポイントです！" },
+  { index: 5, content: "フリーランスエンジニアへの\n完全ロードマップを、\n6年の経験をもとにまとめました。\n\n詳しくはこちら👇\nhttps://yumion3blog.com/aim-for-freelance-engineer/\n\n#フリーランスエンジニア #エンジニア転職 #キャリア" },
+];
+
+function DemoPost({ index, content }: { index: number; content: string }) {
+  return (
+    <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
+      <div className="flex items-start gap-3">
+        <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+          {index}
+        </span>
+        <p className="flex-1 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{content}</p>
+      </div>
+    </div>
+  );
+}
+
 export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading }: LandingPageProps) {
   const { user } = useAuth();
+  const [showAllPosts, setShowAllPosts] = useState(false);
 
   function handleHeroSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -109,6 +132,96 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
                 <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ② DEMO — ビフォーアフター */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-4">Demo</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
+              URLを入れるだけで、この仕上がり
+            </h2>
+            <p className="text-gray-500 text-sm sm:text-base">
+              実際の生成イメージをご覧ください
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 items-start">
+            {/* Before — ブログ記事 */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Input</span>
+                <span className="text-xs text-gray-300">— ブログ記事URL</span>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                  <div className="flex-1 bg-white rounded-md border border-gray-200 px-3 py-1.5 ml-2">
+                    <p className="text-xs text-gray-400 truncate">https://yumion3blog.com/aim-for-freelance-engineer/</p>
+                  </div>
+                </div>
+                <h3 className="font-bold text-gray-900 text-base mb-3">フリーランスエンジニアになるには？完全ロードマップ</h3>
+                <div className="space-y-2 text-sm text-gray-500 leading-relaxed">
+                  <p>会社員エンジニアの平均年収は約550万円。一方、フリーランスに転向した人の平均は約880万円以上——その差は約330万円にもなります。</p>
+                  <p>フリーランスエンジニア市場は10年で約1.6倍に拡大しており、企業の約60%が「フリーランスをもっと活用したい」と回答。独立のタイミングや必要なスキル、リスクの低い始め方まで...</p>
+                  <p className="text-gray-300">（以下、約5,000文字の記事本文が続く）</p>
+                </div>
+              </div>
+            </div>
+
+            {/* After — 生成されたスレッド */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold text-blue-500 uppercase tracking-widest">Output</span>
+                <span className="text-xs text-gray-300">— Xスレッド（5投稿）</span>
+              </div>
+              <div className="space-y-3">
+                {(showAllPosts ? DEMO_POSTS : DEMO_POSTS.slice(0, 3)).map((post) => (
+                  <DemoPost key={post.index} index={post.index} content={post.content} />
+                ))}
+
+                {!showAllPosts && (
+                  <button
+                    onClick={() => setShowAllPosts(true)}
+                    className="w-full flex items-center justify-center gap-1.5 text-sm text-blue-500 hover:text-blue-700 font-medium py-3 rounded-xl border border-dashed border-blue-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors cursor-pointer"
+                  >
+                    <ChevronDown size={16} />
+                    残り{DEMO_POSTS.length - 3}件を表示
+                  </button>
+                )}
+                {showAllPosts && (
+                  <button
+                    onClick={() => setShowAllPosts(false)}
+                    className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 font-medium py-2 transition-colors cursor-pointer"
+                  >
+                    <ChevronUp size={16} />
+                    閉じる
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="text-center mt-12">
+            <div className="inline-flex items-center gap-2 text-sm text-gray-500 mb-4">
+              <ArrowRight size={14} className="text-blue-500" />
+              この変換がわずか5秒。まずは無料で試してみてください。
+            </div>
+            <div>
+              <button
+                onClick={onLoginClick}
+                className="rounded-xl bg-blue-500 hover:bg-blue-400 text-white px-8 py-3.5 text-sm font-bold transition-colors inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-500/20"
+              >
+                <Sparkles size={15} />
+                無料ではじめる
+              </button>
+            </div>
           </div>
         </div>
       </section>
