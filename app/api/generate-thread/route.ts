@@ -49,10 +49,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
     }
 
-    const { url } = await request.json();
+    const { url, mode = "thread", tone = "casual" } = await request.json();
 
     if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "URLが必要です" }, { status: 400 });
+    }
+
+    const validModes = ["thread", "single"];
+    const validTones = ["casual", "business", "provocative"];
+    if (!validModes.includes(mode)) {
+      return NextResponse.json({ error: "無効なモードです" }, { status: 400 });
+    }
+    if (!validTones.includes(tone)) {
+      return NextResponse.json({ error: "無効なトーンです" }, { status: 400 });
     }
 
     try {
@@ -96,15 +105,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "クレジットが不足しています" }, { status: 402 });
     }
 
-    let responseText: string;
-    try {
-      const message = await client.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2048,
-        messages: [
-          {
-            role: "user",
-            content: `以下のブログ記事を読んで、X（Twitter）用の連投スレッドを作成してください。
+    // トーン別の指示を組み立て
+    const toneInstructions: Record<string, string> = {
+      casual: `【トーン・スタイル】
+- 親しみやすく、フランクな口調（ですます調ベース、ところどころ砕けた表現OK）
+- 絵文字を適度に使い、テンポよく読める文体
+- 難しい専門用語は使わず、噛み砕いた表現に置き換える
+  例）社会保険料 → 「手取りが減る理由」、インフレ → 「物価が上がる」 など`,
+      business: `【トーン・スタイル】
+- 信頼感のある、丁寧なビジネス口調（ですます調）
+- データや根拠を重視し、論理的で説得力のある文体
+- 専門用語は必要に応じて使うが、初見でもわかるよう補足を添える
+- 絵文字は控えめに（1〜2個程度）`,
+      provocative: `【トーン・スタイル】
+- 読者の常識を覆すような、強めの切り口
+- 「知らないと損」「まだ○○してるの？」のような煽り表現を活用
+- 断定的な言い回しで、思わず反応したくなる文体
+- 数字やインパクトのある事実を前面に出す`,
+    };
+
+    const toneText = toneInstructions[tone] || toneInstructions.casual;
+
+    // モード別のプロンプトを組み立て
+    let promptContent: string;
+
+    if (mode === "single") {
+      // 単一ポスト生成モード: 3パターン生成
+      promptContent = `以下のブログ記事を読んで、X（Twitter）用の単一ポスト（1投稿）を3パターン作成してください。
 
 【重要ルール】
 - 入力された内容がブログ記事として不適切な場合（記事内容が存在しない、意味のあるテキストが読み取れない等）は、生成を中断し、以下のJSONのみを返すこと：
@@ -116,10 +143,45 @@ ${articleContent}
 【ターゲット】
 20〜30代のキャリアや将来のお金に不安を感じている社会人
 
-【トーン・スタイル】
-- 有益で親しみやすい（ですます調）
-- 難しい専門用語は使わず、噛み砕いた表現に置き換える
-  例）社会保険料 → 「手取りが減る理由」、インフレ → 「物価が上がる」 など
+${toneText}
+
+【構成ルール】
+- 3パターンそれぞれ異なる切り口で作成する：
+  パターン1: 記事の最もインパクトのある数字や事実をフックにする
+  パターン2: 読者の悩みや疑問に寄り添う問いかけ型
+  パターン3: 意外性のある主張や逆説で興味を引く型
+- 各パターンとも、最後に記事URLへの誘導を含める
+- 誘導URLは必ず「${url}」を使う
+
+【フォーマットルール】
+- 1ポストは最大140文字以内
+- スマホで読みやすいよう、2〜3行ごとに空行（\\n\\n）を入れる
+- ハッシュタグは2〜3個
+
+【出力形式】
+以下のJSON形式のみで出力してください（他のテキストは一切不要）：
+{
+  "posts": [
+    {"index": 1, "content": "パターン1のポスト内容"},
+    {"index": 2, "content": "パターン2のポスト内容"},
+    {"index": 3, "content": "パターン3のポスト内容"}
+  ]
+}`;
+    } else {
+      // スレッド生成モード（従来）
+      promptContent = `以下のブログ記事を読んで、X（Twitter）用の連投スレッドを作成してください。
+
+【重要ルール】
+- 入力された内容がブログ記事として不適切な場合（記事内容が存在しない、意味のあるテキストが読み取れない等）は、生成を中断し、以下のJSONのみを返すこと：
+  {"error": "ブログ記事として認識できる内容がありませんでした"}
+
+【記事内容】
+${articleContent}
+
+【ターゲット】
+20〜30代のキャリアや将来のお金に不安を感じている社会人
+
+${toneText}
 
 【構成ルール】
 1. 1枚目（フック）：「逆説」や「具体的な数字」を使い、20〜30代の不安や好奇心に直接刺さる一文で始める
@@ -143,7 +205,18 @@ ${articleContent}
     {"index": 1, "content": "ポスト内容"},
     {"index": 2, "content": "ポスト内容"}
   ]
-}`,
+}`;
+    }
+
+    let responseText: string;
+    try {
+      const message = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        messages: [
+          {
+            role: "user",
+            content: promptContent,
           },
         ],
       });
@@ -191,7 +264,7 @@ ${articleContent}
     // 履歴を保存
     const { data: thread } = await supabase
       .from("threads")
-      .insert({ user_id: user.id, url, posts: parsed.posts })
+      .insert({ user_id: user.id, url, posts: parsed.posts, mode, tone })
       .select("id")
       .single();
 
