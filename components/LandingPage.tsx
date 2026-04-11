@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Sparkles, Zap, Brain, AlignLeft, ArrowDown, Check, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, Zap, Brain, MessageSquare, MessagesSquare, Share2, Palette, ArrowDown, Check, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 
@@ -55,7 +55,7 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
         <div className="relative max-w-3xl mx-auto px-4 pt-20 pb-16 sm:pt-28 sm:pb-24 text-center">
           <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-medium px-3 py-1.5 rounded-full mb-8">
             <Sparkles size={12} />
-            AIがXスレッドを自動生成
+            AIがXの投稿を自動生成
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-extrabold leading-tight tracking-tight mb-4">
@@ -63,9 +63,23 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
             <br />
             <span className="text-blue-400">5秒でXへ。</span>
           </h1>
-          <p className="text-gray-400 text-lg sm:text-xl mb-12">
-            URLを貼るだけでスレッド完成。
+          <p className="text-gray-400 text-lg sm:text-xl mb-4">
+            URLを貼るだけ。スレッドも単一ポストも、好みのトーンで。
           </p>
+          <div className="flex flex-wrap justify-center gap-3 mb-12">
+            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-800/50 border border-gray-700/50 px-3 py-1.5 rounded-full">
+              <MessagesSquare size={12} className="text-blue-400" />
+              スレッド連投
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-800/50 border border-gray-700/50 px-3 py-1.5 rounded-full">
+              <MessageSquare size={12} className="text-blue-400" />
+              単一ポスト3案
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-800/50 border border-gray-700/50 px-3 py-1.5 rounded-full">
+              <Palette size={12} className="text-blue-400" />
+              3つのトーン
+            </span>
+          </div>
 
           <form onSubmit={handleHeroSubmit} className="max-w-xl mx-auto">
             <div className="flex flex-col sm:flex-row gap-2">
@@ -228,28 +242,43 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
 
       {/* ③ FEATURES */}
       <section className="bg-white py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
+        <div className="max-w-4xl mx-auto text-center">
           <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-4">Features</p>
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-12">
-            3つの強みで、あなたの発信を加速する
+            必要な機能が、すべて揃っています
           </h2>
 
-          <div className="grid sm:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
               {
                 icon: <Zap size={22} className="text-blue-500" />,
-                title: "圧倒的なタイパ",
+                title: "5秒で生成完了",
                 desc: "URLを貼ってボタンを押すだけ。手動で20分かかる作業が5秒で終わります。",
+              },
+              {
+                icon: <MessagesSquare size={22} className="text-blue-500" />,
+                title: "スレッド & 単一ポスト",
+                desc: "連投スレッドはもちろん、1投稿で完結するポストも3案まとめて生成。用途に合わせて選べます。",
+              },
+              {
+                icon: <Palette size={22} className="text-blue-500" />,
+                title: "3つのトーン選択",
+                desc: "カジュアル・ビジネス・煽り系の3トーンから選択。同じ記事でも、雰囲気を変えて何度でも生成できます。",
               },
               {
                 icon: <Brain size={22} className="text-blue-500" />,
                 title: "プロンプト不要",
-                desc: "Xのトレンドを学習済み。AIへの指示を考える必要すらありません。",
+                desc: "Xに最適化された文章をAIが自動生成。プロンプトを考える必要はありません。",
               },
               {
-                icon: <AlignLeft size={22} className="text-blue-500" />,
-                title: "140文字の壁を突破",
-                desc: "独自アルゴリズムで、Xに最適な文字数と構成を自動調整します。",
+                icon: <Share2 size={22} className="text-blue-500" />,
+                title: "ワンクリックでシェア",
+                desc: "生成したスレッドはシェアリンクで共有OK。チームやSNSで簡単にシェアできます。",
+              },
+              {
+                icon: <MessageSquare size={22} className="text-blue-500" />,
+                title: "編集 & コピー",
+                desc: "生成後に自分の言葉で微調整して、ワンクリックでクリップボードにコピー。そのままXに投稿できます。",
               },
             ].map(({ icon, title, desc }) => (
               <div key={title} className="rounded-2xl bg-blue-50 border border-blue-100 p-6 text-left">
@@ -287,6 +316,9 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
                   { label: "作業時間", self: "20〜30分", chatgpt: "5〜10分", xtg: "約5秒", highlight: true },
                   { label: "手軽さ", self: "URL→手作業で要約", chatgpt: "プロンプトを毎回考える", xtg: "URLを貼るだけ", highlight: true },
                   { label: "X最適化", self: "△ 自分で調整", chatgpt: "△ 指示次第", xtg: "◎ 自動で最適化", highlight: true },
+                  { label: "出力形式", self: "1パターン", chatgpt: "指示が必要", xtg: "スレッド＋単一ポスト3案", highlight: true },
+                  { label: "トーン選択", self: "×", chatgpt: "△ 毎回指示", xtg: "◎ 3トーンをワンクリック", highlight: true },
+                  { label: "シェア機能", self: "×", chatgpt: "×", xtg: "◎ URLで即シェア", highlight: true },
                   { label: "コスト", self: "無料（時間コスト大）", chatgpt: "月$20〜", xtg: "¥300 / 10回", highlight: false },
                 ].map(({ label, self, chatgpt, xtg, highlight }) => (
                   <tr key={label} className="border-b border-gray-100 last:border-0">
@@ -318,7 +350,9 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
               <p className="text-sm text-gray-500 mb-6">新規登録特典</p>
               <ul className="space-y-2 text-sm text-gray-600 mb-8">
                 <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" />3回分のクレジット</li>
-                <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" />全機能が使える</li>
+                <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" />スレッド & 単一ポスト両対応</li>
+                <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" />3つのトーン選択</li>
+                <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" />シェアリンク生成</li>
                 <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" />クレジットカード不要</li>
               </ul>
               <button
@@ -341,6 +375,7 @@ export function LandingPage({ url, setUrl, onLoginClick, onBuyClick, buyLoading 
               <p className="text-sm text-gray-500 mb-6">1回あたり30円</p>
               <ul className="space-y-2 text-sm text-gray-600 mb-8">
                 <li className="flex items-center gap-2"><Check size={14} className="text-blue-500 shrink-0" />クレジット10回分を即時付与</li>
+                <li className="flex items-center gap-2"><Check size={14} className="text-blue-500 shrink-0" />無料プランと同じ全機能</li>
                 <li className="flex items-center gap-2"><Check size={14} className="text-blue-500 shrink-0" />使い切ったら追加購入OK</li>
                 <li className="flex items-center gap-2"><Check size={14} className="text-blue-500 shrink-0" />Stripeによる安全な決済</li>
               </ul>
